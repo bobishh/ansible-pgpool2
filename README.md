@@ -18,4 +18,3 @@ Author Information
 
 - Evgeniy Dekhtyarev, 2GIS, LLC
 - Alexey Medvedchikov, 2GIS, LLC
-

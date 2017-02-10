@@ -1,5 +1,4 @@
 ---
-
 - name: start pgpool2
   service:
     name: pgpool2

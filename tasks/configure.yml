@@ -1,5 +1,4 @@
 ---
-
 - name: Create "/var/log/postgresql/" directory with necessary privileges
   file:
     dest: "/var/log/postgresql/"
@@ -12,6 +11,13 @@
   command: dpkg-divert --quiet --local --divert {{ pgpool2_confdir }}/pcp.conf.dpkg-divert --rename {{ pgpool2_confdir }}/pcp.conf
   args:
     creates: "{{ pgpool2_confdir }}/pcp.conf.dpkg-divert"
+
+- name: pgpool user pcppass
+  template:
+    src: pcppass
+    dest: /var/lib/postgresql/.pcppass
+    mode: 0600
+    owner: "{{ pgpool2_user }}"
 
 - name: PCP authentication registry file {{ pgpool2_confdir }}/pcp.conf
   template:
@@ -89,6 +95,13 @@
   notify:
     - reload pgpool2
 
+- name: Ensure pcppass file is present
+  template:
+    src: pcppass.j2
+    dest: '~{{ pgpool2_user }}/.pcppass'
+    owner: '{{ pgpool2_user }}'
+    mode: 0600
+
 - name: Create sudo permissions for pgpool2
   copy:
     src: pgpool2
@@ -97,8 +110,16 @@
     group: "root"
     mode: 0440
 
+- name: Ensure failover scripts are present
+  template:
+    src: '{{ item }}'
+    dest: '{{ pg_home }}/{{ item | regexp_replace("\.j2", "") }}'
+  with_items:
+    - failover.sh.j2
+    - pgpool_remote_start.j2
+    - recovery_1st_stage.j2
+
 - name: ensure pgpool2 is running
   service:
     name: pgpool2
     state: started
-

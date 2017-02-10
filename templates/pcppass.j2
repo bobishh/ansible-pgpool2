@@ -1,0 +1,4 @@
+# host:port:user:pass
+{% for address in pgpool2_listen_addresses %}
+{{ address }}:{{ pgpool2_pcp_port }}:{{pgpool2_pcp_user_name}}:{{pgpool2_pcp_user_password }}
+{% endfor %}

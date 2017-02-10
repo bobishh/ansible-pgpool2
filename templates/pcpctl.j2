@@ -9,17 +9,15 @@
 PATH="/bin:/sbin:/usr/bin:/usr/sbin"
 
 # PCP configuration
-pcp_host="127.0.0.1"
+pcp_host="localhost"
 pcp_port="{{ pgpool2_pcp_port }}"
 pcp_username="{{ pgpool2_pcp_user_name }}"
-pcp_password="{{ pgpool2_pcp_user_password }}"
-pcp_timeout="10"
 
 # Health check uses psql to connect to each backend server. Specify options required to connect here
 psql_healthcheck_opts="-U postgres"
 
 # Default options to send to pcp commands
-pcp_cmd_preamble="$pcp_timeout $pcp_host $pcp_port $pcp_username $pcp_password"
+pcp_cmd_preamble="-h $pcp_host -p $pcp_port -U $pcp_username -w"
 
 #
 # Get the node ID of the first master

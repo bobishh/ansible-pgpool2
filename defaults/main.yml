@@ -1,4 +1,5 @@
 ---
+pg_home: '/var/lib/postgresql/9.5/main'
 
 pgpool2_packages:
   - pgpool2
@@ -12,7 +13,6 @@ pgpool2_group: postgres
 pgpool2_confdir: /etc/pgpool2
 pgpool2_pcp_user_name: pcpAdmin
 pgpool2_pcp_user_password: passw0rd
-
 pgpool2_auto_reattach: off
 
 pgpool2_hba_default:
@@ -107,7 +107,8 @@ pgpool2_if_down_cmd: sudo /sbin/ifconfig eth0:0 down
 pgpool2_if_up_cmd: sudo /sbin/ifconfig eth0:0 inet $_IP_$ netmask 255.255.255.0
 pgpool2_ignore_leading_white_space: on
 pgpool2_insert_lock: on
-pgpool2_listen_addresses: localhost
+pgpool2_listen_addresses:
+  - localhost
 pgpool2_listen_backlog_multiplier: 2
 pgpool2_load_balance_mode: off
 pgpool2_lobj_lock_table: ''
