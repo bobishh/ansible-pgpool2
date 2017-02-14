@@ -1,0 +1,176 @@
+---
+- name: create "/var/log/postgresql/" directory with necessary privileges
+  file:
+    dest: "/var/log/postgresql/"
+    owner: "{{ pgpool2_user }}"
+    group: "{{ pgpool2_group }}"
+    mode: 0755
+    state: directory
+
+- name: divert PCP authentication registry file {{ pgpool2_confdir }}/pcp.conf
+  command: dpkg-divert --quiet --local --divert {{ pgpool2_confdir }}/pcp.conf.dpkg-divert --rename {{ pgpool2_confdir }}/pcp.conf
+  args:
+    creates: "{{ pgpool2_confdir }}/pcp.conf.dpkg-divert"
+
+- name: PCP authentication registry file {{ pgpool2_confdir }}/pcp.conf
+  template:
+    src: pcp.conf.j2
+    dest: "{{ pgpool2_confdir }}/pcp.conf"
+    owner: "{{ pgpool2_user }}"
+    group: "{{ pgpool2_group }}"
+    mode: 0640
+
+- name: divert pgpool2 main configuration file {{ pgpool2_confdir }}/pgpool.conf
+  command: dpkg-divert --quiet --local --divert {{ pgpool2_confdir }}/pgpool.conf.dpkg-divert --rename {{ pgpool2_confdir }}/pgpool.conf
+  args:
+    creates: "{{ pgpool2_confdir }}/pgpool.conf.dpkg-divert"
+
+- name: pgpool2 main configuration file {{ pgpool2_confdir }}/pgpool.conf
+  template:
+    src: pgpool.conf.j2
+    dest: "{{ pgpool2_confdir }}/pgpool.conf"
+    owner: "{{ pgpool2_user }}"
+    group: "{{ pgpool2_group }}"
+    mode: 0640
+  notify:
+    - restart pgpool2
+
+- name: divert pgpool2 pool hba file {{ pgpool2_confdir }}/pool_hba.conf
+  command: dpkg-divert --quiet --local --divert {{ pgpool2_confdir }}/pool_hba.conf.dpkg-divert --rename {{ pgpool2_confdir }}/pool_hba.conf
+  args:
+    creates: "{{ pgpool2_confdir }}/pool_hba.conf.dpkg-divert"
+
+- name: pgpool2 pool hba file {{ pgpool2_confdir }}/pool_hba.conf
+  template:
+    src: pool_hba.conf.j2
+    dest: "{{ pgpool2_confdir }}/pool_hba.conf"
+    owner: "{{ pgpool2_user }}"
+    group: "{{ pgpool2_group }}"
+    mode: 0640
+  notify:
+    - restart pgpool2
+
+- name: divert pgpool2 initscript /etc/init.d/pgpool2
+  command: dpkg-divert --quiet --local --divert /etc/init.d/pgpool2.dpkg-divert --rename /etc/init.d/pgpool2
+  args:
+    creates: "/etc/init.d/pgpool2.dpkg-divert"
+
+- name: pgpool2 initscript /etc/init.d/pgpool2
+  template:
+    src: pgpool2.j2
+    dest: "/etc/init.d/pgpool2"
+    mode: 0755
+  notify:
+    - restart pgpool2
+
+- name: pgpool2 node reattach script
+  become: true
+  become_user: '{{ pgpool2_user }}'
+  template:
+    src: pgpool2_reattach.sh.j2
+    dest: "~{{ pgpool2_user }}/pgpool2_reattach.sh"
+    mode: 0700
+
+
+- name: try to reattach nodes every 10 seconds
+  become: true
+  become_user: '{{ pgpool2_user }}'
+  cron:
+    name: "pgpool2 reattach detached backends"
+    job: "for i in 0 1 2 3 4 5 ; do ~{{ pgpool2_user }}/pgpool2_reattach.sh >/dev/null 2>&1; sleep 10 ; done"
+    state: "{{'present' if pgpool2_auto_reattach else 'absent'}}"
+
+- name: add users to pool_passwd
+  copy:
+    dest: "{{ pgpool2_confdir }}/{{ pgpool2_pool_passwd }}"
+    owner: "{{ pgpool2_user }}"
+    group: "{{ pgpool2_group }}"
+    mode: 0640
+    content: |
+      {% for user in pgpool2_pool_users %}
+      {{ user.name }}:md5{{ (user.pass + user.name) | hash('md5') }}
+      {% endfor %}
+  notify:
+    - reload pgpool2
+
+- name: ensure pcppass file is present
+  template:
+    src: pcppass.j2
+    dest: '~{{ pgpool2_user }}/.pcppass'
+    owner: '{{ pgpool2_user }}'
+    mode: 0600
+
+- name: create sudo permissions for pgpool2
+  copy:
+    src: pgpool2
+    dest: "/etc/sudoers.d/pgpool2"
+    owner: "root"
+    group: "root"
+    mode: 0440
+
+- name: ensure failover scripts are present
+  template:
+    src: '{{ item }}'
+    dest: '{{ pg_home }}/{{ item | regex_replace("\.j2", "") }}'
+    mode: 0755
+  with_items:
+    - failover.sh.j2
+    - failback.sh.j2
+    - pgpool_remote_start.j2
+    - recovery_1st_stage.j2
+  notify: restart pgpool2
+
+- name: ensure ssh keys are present
+  unarchive:
+    src: ssh.tar
+    dest: '~{{ pgpool2_user }}/'
+    owner: '{{ pgpool2_user }}'
+
+- name: ensure ssh keys are present
+  become: true
+  become_user: root
+  unarchive:
+    src: ssh.tar
+    dest: '~/'
+    owner: root
+
+- name: read public key
+  shell: cat ~{{ pgpool2_user }}/.ssh/id_rsa.pub
+  register: public_key
+
+- name: ensure authorized_keys file is present
+  file:
+    path: '~{{ pgpool2_user }}/.ssh/authorized_keys'
+    state: touch
+    owner: '{{ pgpool2_user }}'
+    mode: 0600
+
+- name: ensure own ssh key present in authorized_keys
+  lineinfile: 
+    line: '{{ public_key.stdout }}'
+    dest: '~{{ pgpool2_user }}/.ssh/authorized_keys'
+    state: present
+
+- name: ensure '{{ pgpool2_user }}' has .bashrc
+  file:
+    path: '~{{ pgpool2_user}}/.bash_profile'
+    mode: 0600
+    owner: '{{ pgpool2_user}}'
+    state: touch
+
+- name: ensure '{{ pg_home }}/recovery.conf' has trigger_file rule
+  lineinfile:
+    line: "trigger_file = '{{ pg_home }}/trigger'"
+    dest: '{{ pg_home }}/recovery.conf'
+    state: present
+
+- name: ensure '{{ pgpool2_user }}' can use pcp tools
+  lineinfile:
+    line: 'export PATH=$PATH:/usr/sbin'
+    dest: '~{{ pgpool2_user}}/.bash_profile'
+    state: present
+
+- name: ensure pgpool2 is running
+  service:
+    name: pgpool2
+    state: started

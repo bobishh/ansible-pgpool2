@@ -1,0 +1,26 @@
+#!/bin/bash -x
+PGDATA=$1
+REMOTE_HOST=$2
+REMOTE_PGDATA=$3
+
+PORT=5432
+PGHOME='{{ postgresql_data_directory }}'
+
+PRIMARY_IP=$(cat $PGDATA/latest_primary)
+
+echo "recovery_1st_stage called with $1 $2 $3 at $(date) by $(whoami)" >> /tmp/recovery
+
+ssh -T postgres@$REMOTE_HOST "
+service postgresql stop
+rm -rf $REMOTE_PGDATA
+pg_basebackup -h $PRIMARY_IP -U {{ pgpool2_recovery_user }} -D $REMOTE_PGDATA -x -c fast
+rm -f $REMOTE_PGDATA/trigger"
+
+ssh -T postgres@$REMOTE_HOST "
+cat > $REMOTE_PGDATA/recovery.conf <<EOT
+standby_mode = 'on'
+primary_conninfo = 'host=$PRIMARY_IP port=$PORT user={{ pgpool2_recovery_user }}'
+trigger_file = '$PGDATA/trigger'
+EOT
+service postgresql start;
+"

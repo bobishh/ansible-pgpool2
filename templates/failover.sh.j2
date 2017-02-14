@@ -1,0 +1,26 @@
+#!/bin/bash -x
+FALLING_NODE=$1            # %d
+OLDPRIMARY_NODE=$2         # %P
+NEW_PRIMARY=$3             # %H
+PGDATA=$4                  # %R
+
+script="
+  touch $PGDATA/trigger;
+"
+
+cat > $PGDATA/recovery.conf <<EOF
+standby_mode = on
+primary_conninfo = 'host=$NEW_PRIMARY port=5432 user=postgres'
+trigger_file = '$PGDATA/trigger'
+EOF
+
+echo $NEW_PRIMARY > $PGDATA/latest_primary
+
+chown postgres:postgres $PGDATA/latest_primary $PGDATA/recovery.conf
+
+echo "CALLED WITH $1 $2 $3 $4 at $(date) by $(whoami)" >> /tmp/failover
+
+if [ $FALLING_NODE = $OLDPRIMARY_NODE ]; then
+    ssh -T postgres@$NEW_PRIMARY "$script"
+fi;
+exit 0;

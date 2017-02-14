@@ -1,0 +1,19 @@
+#!/bin/bash -x
+FALLING_NODE=$1            # %d
+OLDPRIMARY_NODE=$2         # %P
+NEW_PRIMARY=$3             # %H
+PGDATA=$4                  # %R
+FAILBACK_NODE_IP=$5        # %h
+
+echo "CALLED WITH $1 $2 $3 $4 $5 at $(date) by $(whoami)" >> /tmp/failback
+
+script="
+cat > $PGDATA/recovery.conf << EOT
+standby_mode = on
+primary_conninfo = 'host=$NEW_PRIMARY port=5432 user=postgres'
+trigger_file = '/var/lib/postgresql/9.5/main/trigger'
+EOT
+"
+
+ssh -T postgres@$FAILBACK_NODE_IP "$script"
+exit 0;
