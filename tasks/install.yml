@@ -1,5 +1,4 @@
 ---
-
 - name: install required pgpool2 packages
   apt:
     pkg: "{{ item }}"
@@ -13,4 +12,3 @@
     owner: root
     group: root
     mode: 0755
-

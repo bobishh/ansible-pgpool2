@@ -112,7 +112,7 @@
   template:
     src: '{{ item }}'
     dest: '{{ pg_home }}/{{ item | regex_replace("\.j2", "") }}'
-    mode: 0755
+    mode: 0700
   with_items:
     - failover.sh.j2
     - failback.sh.j2
@@ -157,12 +157,6 @@
     mode: 0600
     owner: '{{ pgpool2_user}}'
     state: touch
-
-- name: ensure '{{ pg_home }}/recovery.conf' has trigger_file rule
-  lineinfile:
-    line: "trigger_file = '{{ pg_home }}/trigger'"
-    dest: '{{ pg_home }}/recovery.conf'
-    state: present
 
 - name: ensure '{{ pgpool2_user }}' can use pcp tools
   lineinfile:
